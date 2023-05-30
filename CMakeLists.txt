@@ -9,7 +9,7 @@ get_filename_component(PICNIX_DIR ${PICNIX_DIR} ABSOLUTE)
 # common configuration
 include(${PICNIX_DIR}/common.cmake OPTIONAL)
 
-set(PROJECT_NAME "foot")
+set(PROJECT_NAME "ebeam")
 
 # project
 project(${PROJECT_NAME} CXX)
@@ -27,6 +27,3 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${PICNIX_DIR})
 
 # link library
 target_link_libraries(${PROJECT_NAME} nix expic)
-
-# copy
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/alfven DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

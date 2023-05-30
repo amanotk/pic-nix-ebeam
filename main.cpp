@@ -26,7 +26,7 @@ public:
       Ns = config["Ns"].get<int>();
 
       if (Ns != Ns_mustbe) {
-        ERROR << "Assumption of Ns = 2 is violated";
+        ERROR << "Assumption of Ns = 3 is violated";
         exit(-1);
       }
     }
@@ -39,14 +39,14 @@ public:
     float64 delt  = config["delt"].get<float64>();
     float64 delh  = config["delh"].get<float64>();
     float64 mime  = config["mime"].get<float64>();
-    float64 mach  = config["mach"].get<float64>();
-    float64 theta = config["theta"].get<float64>();
-    float64 phi   = config["phi"].get<float64>();
     float64 sigma = config["sigma"].get<float64>();
     float64 alpha = config["alpha"].get<float64>();
-    float64 betae = config["betae"].get<float64>();
     float64 betai = config["betai"].get<float64>();
-    float64 betar = config["betar"].get<float64>();
+    float64 vtcpa = config["vtcpa"].get<float64>();
+    float64 vtcpe = config["vtcpe"].get<float64>();
+    float64 vtbpa = config["vtbpa"].get<float64>();
+    float64 vtbpe = config["vtbpe"].get<float64>();
+    float64 vd    = config["vd"].get<float64>();
     float64 mele  = 1.0 / (sigma * nppc);
     float64 qele  = -wp * sqrt(sigma) * mele;
     float64 mion  = mele * mime;
@@ -54,11 +54,9 @@ public:
     float64 b0    = cc * sqrt(sigma) / std::abs(qele / mele);
     float64 vae   = cc * sqrt(sigma);
     float64 vai   = cc * sqrt(sigma / mime);
-    float64 vte   = vae * sqrt(0.5 * betae);
     float64 vti   = vai * sqrt(0.5 * betai);
-    float64 vtr   = vai * sqrt(0.5 * betar);
-    float64 vdi   = -vai * mach * alpha;
-    float64 vdr   = +vai * mach * (1 - alpha);
+    float64 vdc   = -vd * alpha;
+    float64 vdb   = +vd * (1 - alpha);
 
     // set grid size and coordinate
     set_coordinate(delh, delh, delh);
@@ -67,9 +65,9 @@ public:
     // initialize field
     //
     {
-      float64 Bx = b0 * cos(theta / 180 * nix::math::pi);
-      float64 By = b0 * sin(theta / 180 * nix::math::pi) * cos(phi / 180 * nix::math::pi);
-      float64 Bz = b0 * sin(theta / 180 * nix::math::pi) * sin(phi / 180 * nix::math::pi);
+      float64 Bx = b0;
+      float64 By = 0.0;
+      float64 Bz = 0.0;
 
       // memory allocation
       allocate();
@@ -131,37 +129,38 @@ public:
 
         up.resize(Ns);
 
-        // electron
-        up[0]     = std::make_shared<Particle>(2 * mp, nz * ny * nx);
+        // core electron
+        up[0]     = std::make_shared<Particle>(2 * mp1, nz * ny * nx);
         up[0]->m  = mele;
         up[0]->q  = qele;
-        up[0]->Np = mp;
+        up[0]->Np = mp1;
 
-        // incoming ion
-        up[1]     = std::make_shared<Particle>(2 * mp1, nz * ny * nx);
-        up[1]->m  = mion;
-        up[1]->q  = qion;
-        up[1]->Np = mp1;
+        // beam electron
+        up[1]     = std::make_shared<Particle>(2 * mp2, nz * ny * nx);
+        up[1]->m  = mele;
+        up[1]->q  = qele;
+        up[1]->Np = mp2;
 
-        // reflected ion
-        up[2]     = std::make_shared<Particle>(2 * mp2, nz * ny * nx);
+        // ion
+        up[2]     = std::make_shared<Particle>(2 * mp, nz * ny * nx);
         up[2]->m  = mion;
         up[2]->q  = qion;
-        up[2]->Np = mp2;
+        up[2]->Np = mp;
 
         // initialize particle distribution
-        std::vector<int>     mp_ele{0, mp1};
-        std::vector<int>     mp_ion{mp1, mp2};
-        std::vector<float64> vt_ion{vti, vtr};
-        std::vector<float64> vd_ion{vdi, vdr};
+        std::vector<int>     mp_ele{mp1, mp2};
+        std::vector<int>     mp_ion{0, mp1};
+        std::vector<float64> vtpa_ele{vtcpa, vtbpa};
+        std::vector<float64> vtpe_ele{vtcpe, vtbpe};
+        std::vector<float64> vd_ele{vdc, vdb};
 
         for (int is = 0; is < 2; is++) {
-          const int is_ele      = 0;
-          const int is_ion      = is + 1;
-          const int ip_ele_zero = mp_ele[is];
-          const int ip_ion_zero = 0;
+          const int is_ele      = is;
+          const int is_ion      = 2;
+          const int ip_ele_zero = 0;
+          const int ip_ion_zero = mp_ion[is];
 
-          for (int ip = 0; ip < mp_ion[is]; ip++) {
+          for (int ip = 0; ip < mp_ele[is]; ip++) {
             const int ip_ele = ip + ip_ele_zero;
             const int ip_ion = ip + ip_ion_zero;
 
@@ -174,17 +173,17 @@ public:
             up[is_ele]->xu(ip_ele, 0) = x;
             up[is_ele]->xu(ip_ele, 1) = y;
             up[is_ele]->xu(ip_ele, 2) = z;
-            up[is_ele]->xu(ip_ele, 3) = normal(mtv) * vte;
-            up[is_ele]->xu(ip_ele, 4) = normal(mtv) * vte;
-            up[is_ele]->xu(ip_ele, 5) = normal(mtv) * vte;
+            up[is_ele]->xu(ip_ele, 3) = normal(mtv) * vtpa_ele[is] + vd_ele[is];
+            up[is_ele]->xu(ip_ele, 4) = normal(mtv) * vtpe_ele[is];
+            up[is_ele]->xu(ip_ele, 5) = normal(mtv) * vtpe_ele[is];
 
             // ions
             up[is_ion]->xu(ip_ion, 0) = x;
             up[is_ion]->xu(ip_ion, 1) = y;
             up[is_ion]->xu(ip_ion, 2) = z;
-            up[is_ion]->xu(ip_ion, 3) = normal(mtv) * vt_ion[is] + vd_ion[is];
-            up[is_ion]->xu(ip_ion, 4) = normal(mtv) * vt_ion[is];
-            up[is_ion]->xu(ip_ion, 5) = normal(mtv) * vt_ion[is];
+            up[is_ion]->xu(ip_ion, 3) = normal(mtv) * vti;
+            up[is_ion]->xu(ip_ion, 4) = normal(mtv) * vti;
+            up[is_ion]->xu(ip_ion, 5) = normal(mtv) * vti;
 
             // ID
             int64* ele_id64 = reinterpret_cast<int64*>(&up[is_ele]->xu(ip_ele, 0));
